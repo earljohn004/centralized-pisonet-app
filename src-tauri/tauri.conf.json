@@ -16,7 +16,7 @@
         "maximized": true,
         "decorations": true,
         "resizable": false,
-        "fullscreen": true
+        "fullscreen": false
       }
     ],
     "security": {
