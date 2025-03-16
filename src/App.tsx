@@ -25,17 +25,16 @@ function App() {
         setCoin(credits);
       },
     );
-    // Listen for timer updates
+
     const unlistenTimerUpdate = listen(
       "timer_update",
       (event: Event<number>) => {
-        setRemainingTime(event.payload); // Update the remaining time
+        setRemainingTime(event.payload);
       },
     );
 
-    // Listen for the timer completion event
     const unlistenTimerDone = listen("timer_done", () => {
-      setTimerDone(true); // Set the timer as done
+      setTimerDone(true);
     });
 
     return () => {
@@ -43,6 +42,32 @@ function App() {
       unlistenAddTime.then((unlistenFn) => unlistenFn());
       unlistenTimerUpdate.then((unlistenFn) => unlistenFn());
       unlistenTimerDone.then((unlistenFn) => unlistenFn());
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key === "F5" ||
+        (event.ctrlKey && event.key === "r") ||
+        (event.metaKey && event.key === "r")
+      ) {
+        event.preventDefault();
+        console.log("Refresh is disabled");
+      }
+    };
+
+    const handleContextMenu = (event: MouseEvent) => {
+      if (import.meta.env.PROD) {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("contextmenu", handleContextMenu);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("contextmenu", handleContextMenu);
     };
   }, []);
 

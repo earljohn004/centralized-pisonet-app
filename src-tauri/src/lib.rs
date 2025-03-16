@@ -30,10 +30,11 @@ pub fn run() {
 
             tauri::async_runtime::spawn(async move {
                 while let Some((total_time, app_handle)) = rx.recv().await {
-                    let _ = app_handle.emit("addtime_handler", total_time);
-                    let _ = app_handle.emit("timer_update", total_time);
+                    let mut remaining_time = total_time * 5;
 
-                    let mut remaining_time = total_time * 10;
+                    let _ = app_handle.emit("addtime_handler", total_time);
+                    let _ = app_handle.emit("timer_update", remaining_time);
+
 
                     while remaining_time > 0 {
                         sleep(Duration::from_secs(1)).await;
