@@ -1,6 +1,7 @@
-use http_server::start_server;
+use http_server::handler::start_server;
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+mod http_server;
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
@@ -11,9 +12,11 @@ pub fn run() {
     tauri::Builder
         ::default()
         .setup(|app| {
-            tauri::async_runtime::spawn(async {
-                start_server().await;
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                start_server(app_handle).await;
             });
+
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
