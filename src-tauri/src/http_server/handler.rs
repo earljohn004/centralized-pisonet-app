@@ -1,11 +1,14 @@
 use axum::{ Json, Router };
 use tauri::{ AppHandle, Emitter };
+use tokio::sync::mpsc;
 
 use super::models::{ RegisterRequest, RegisterResponse, AddTimeRequest, AddTimeResponse };
 
-pub async fn start_server(app_handle: AppHandle) {
+pub async fn start_server(app_handle: AppHandle, tx: mpsc::Sender<(u64, AppHandle)>) {
     let app_handle_register = app_handle.clone();
     let app_handle_add_time = app_handle.clone();
+
+    let tx_add_time = tx.clone();
 
     let app = Router::new()
         .route(
@@ -14,7 +17,9 @@ pub async fn start_server(app_handle: AppHandle) {
         )
         .route(
             "/api/v1/addtime",
-            axum::routing::post(move |payload| { add_time_handler(payload, app_handle_add_time) })
+            axum::routing::post(move |payload| {
+                add_time_handler(payload, app_handle_add_time, tx_add_time)
+            })
         );
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
@@ -57,14 +62,15 @@ async fn register_handler(
 
 async fn add_time_handler(
     Json(payload): Json<AddTimeRequest>,
-    app_handle: AppHandle
+    app_handle: AppHandle,
+    tx: mpsc::Sender<(u64, AppHandle)>
 ) -> Json<AddTimeResponse> {
     let response = AddTimeResponse {
         status: true,
         text: "Time added successfully".to_string(),
     };
 
-    let _ = app_handle.emit("addtime_handler", payload.clone());
+    let _ = tx.send((payload.credits.clone() as u64, app_handle)).await;
 
     Json(response)
 }
