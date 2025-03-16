@@ -1,4 +1,9 @@
+use std::time::Duration;
+
 use http_server::handler::start_server;
+use tauri::{ AppHandle, Emitter };
+use tokio::sync::mpsc;
+use tokio::time::sleep;
 
 mod http_server;
 
@@ -13,8 +18,31 @@ pub fn run() {
         ::default()
         .setup(|app| {
             let app_handle = app.handle().clone();
+
+            let (tx, mut rx): (
+                mpsc::Sender<(u64, AppHandle)>,
+                mpsc::Receiver<(u64, AppHandle)>,
+            ) = mpsc::channel(32);
+
             tauri::async_runtime::spawn(async move {
-                start_server(app_handle).await;
+                start_server(app_handle, tx).await;
+            });
+
+            tauri::async_runtime::spawn(async move {
+                while let Some((total_time, app_handle)) = rx.recv().await {
+                    let _ = app_handle.emit("addtime_handler", total_time);
+                    let _ = app_handle.emit("timer_update", total_time);
+
+                    let mut remaining_time = total_time * 10;
+
+                    while remaining_time > 0 {
+                        sleep(Duration::from_secs(1)).await;
+                        remaining_time -= 1;
+                        let _ = app_handle.emit("timer_update", remaining_time);
+                    }
+
+                    let _ = app_handle.emit("timer_done", "Timer completed!");
+                }
             });
 
             Ok(())

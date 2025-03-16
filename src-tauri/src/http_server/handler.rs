@@ -1,28 +1,26 @@
-use axum::{ routing::post, Json, Router };
-use serde::{ Deserialize, Serialize };
+use axum::{ Json, Router };
 use tauri::{ AppHandle, Emitter };
+use tokio::sync::mpsc;
 
-#[derive(Deserialize)]
-struct RegisterRequest {
-    pair_id: String,
-    address: String,
-    hwid: String,
-}
+use super::models::{ RegisterRequest, RegisterResponse, AddTimeRequest, AddTimeResponse };
 
-#[derive(Serialize, Clone)]
-struct RegisterResponse {
-    status: bool,
-    server_hwid: String,
-    server_address: String,
-    text: String,
-}
+pub async fn start_server(app_handle: AppHandle, tx: mpsc::Sender<(u64, AppHandle)>) {
+    let app_handle_register = app_handle.clone();
+    let app_handle_add_time = app_handle.clone();
 
-pub async fn start_server(app_handle: AppHandle) {
-    // let app = Router::new().route("/api/v1/register", post(register_handler));
-    let app = Router::new().route(
-        "/api/v1/register",
-        axum::routing::post(move |payload| { register_handler(payload, app_handle.clone()) })
-    );
+    let tx_add_time = tx.clone();
+
+    let app = Router::new()
+        .route(
+            "/api/v1/register",
+            axum::routing::post(move |payload| { register_handler(payload, app_handle_register) })
+        )
+        .route(
+            "/api/v1/addtime",
+            axum::routing::post(move |payload| {
+                add_time_handler(payload, app_handle_add_time, tx_add_time)
+            })
+        );
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
@@ -60,4 +58,19 @@ async fn register_handler(
     let _ = app_handle.emit("register_request", register_response.clone());
 
     Json(register_response)
+}
+
+async fn add_time_handler(
+    Json(payload): Json<AddTimeRequest>,
+    app_handle: AppHandle,
+    tx: mpsc::Sender<(u64, AppHandle)>
+) -> Json<AddTimeResponse> {
+    let response = AddTimeResponse {
+        status: true,
+        text: "Time added successfully".to_string(),
+    };
+
+    let _ = tx.send((payload.credits.clone() as u64, app_handle)).await;
+
+    Json(response)
 }
