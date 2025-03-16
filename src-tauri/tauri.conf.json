@@ -14,7 +14,7 @@
       {
         "title": "centralized-pisonet-app",
         "maximized": true,
-        "decorations": true,
+        "decorations": false,
         "resizable": false,
         "fullscreen": false
       }

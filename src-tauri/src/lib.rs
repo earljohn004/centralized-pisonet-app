@@ -2,12 +2,13 @@ use std::time::Duration;
 
 use http_server::handler::start_server;
 use tauri::menu::{ Menu, MenuItem };
-use tauri::{ AppHandle, Emitter };
+use tauri::{ AppHandle, Emitter, Manager };
 use tauri::tray::TrayIconBuilder;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
 
 mod http_server;
+mod window_manager;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -39,17 +40,22 @@ pub fn run() {
 
             let menu = Menu::with_items(app, &[&quit_i, &show_small_i, &show_main_i])?;
             let _ = TrayIconBuilder::new()
-                .on_menu_event(|app_handle, event| {
+                .on_menu_event(|app, event| {
                     match event.id.as_ref() {
                         "quit" => {
                             println!("quit menu item was clicked");
-                            app_handle.exit(0);
+                            app.exit(0);
                         }
                         "show_small" => {
                             println!("show small was clicked");
+                            window_manager::utility::show_small_window(app);
+                            if let Some(small_window) = app.get_webview_window("small") {
+                                small_window.show().unwrap();
+                            }
                         }
                         "show_main" => {
                             println!("show main was clicked");
+                            window_manager::utility::show_main_window(app);
                         }
                         _ => {
                             println!("menu item {:?} not handled", event.id);
