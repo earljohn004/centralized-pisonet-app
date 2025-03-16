@@ -1,21 +1,36 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
-import { listen } from "@tauri-apps/api/event";
+import { listen, Event } from "@tauri-apps/api/event";
+
+interface IAddCredits {
+  credits: number;
+}
 
 function App() {
   const [greetMsg, setGreetMsg] = useState("");
   const [name, setName] = useState("");
   const [serverStatus, setServerStatus] = useState("offline");
+  const [coin, setCoin] = useState(0);
 
   useEffect(() => {
-    const unlisten = listen("register_request", (event) => {
-      console.log("Received a valid request:", event.payload);
+    const unlistenRegister = listen("register_request", (event) => {
+      console.log("Received a received request", event.payload);
       setServerStatus("Received a valid request");
     });
 
+    const unlistenAddTime = listen(
+      "addtime_handler",
+      (event: Event<IAddCredits>) => {
+        console.log("Received add time request", event.payload);
+        let credits = event.payload.credits;
+        setCoin(credits);
+      },
+    );
+
     return () => {
-      unlisten.then((unlistenFn) => unlistenFn());
+      unlistenRegister.then((unlistenFn) => unlistenFn());
+      unlistenAddTime.then((unlistenFn) => unlistenFn());
     };
   }, []);
 
@@ -29,6 +44,7 @@ function App() {
 
       <div className="row">
         <h2>{serverStatus}</h2>
+        <h2>Inserted PHP {coin}</h2>
       </div>
       <p>Click on the Tauri, Vite, and React logos to learn more.</p>
 
