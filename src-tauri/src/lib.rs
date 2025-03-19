@@ -9,6 +9,7 @@ use tokio::time::sleep;
 
 mod http_server;
 mod window_manager;
+mod settings;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -20,6 +21,9 @@ pub fn run() {
     tauri::Builder
         ::default()
         .setup(|app| {
+            // Initialize the appconfig.json file
+            settings::appconfig::initialize();
+
             let app_handle = app.handle().clone();
 
             let show_main_i = MenuItem::with_id(
