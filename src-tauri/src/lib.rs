@@ -1,3 +1,5 @@
+use std::sync::atomic::{ AtomicU64, Ordering };
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -92,24 +94,44 @@ pub fn run() {
             let ip = application_config.get_ip_address(device_name.as_str())?;
             let port: u16 = application_config.get_port(device_name.as_str())?.parse()?;
 
+            //
+            // Thread to start the server
+            //
             tauri::async_runtime::spawn(async move {
                 let _ = start_server(app_handle, tx, ip, port).await;
             });
 
+            let remaining_time = Arc::new(AtomicU64::new(0));
+            let remaining_time_countdown = Arc::clone(&remaining_time);
+
+            //
+            // Thread to update ui with the remaining time
+            //
+            let countdown_app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    let current_remaining_time = remaining_time_countdown.load(Ordering::SeqCst);
+
+                    if current_remaining_time > 0 {
+                        println!("Remaining time: {}", current_remaining_time);
+                        let _ = countdown_app_handle.emit("timer_update", current_remaining_time);
+                        remaining_time_countdown.fetch_sub(1, Ordering::SeqCst);
+                        sleep(Duration::from_secs(1)).await;
+                    } else {
+                        let _ = countdown_app_handle.emit("timer_done", "Timer completed!");
+                        sleep(Duration::from_millis(100)).await;
+                    }
+                }
+            });
+
+            //
+            // Thread to receive timer events from the workers
+            //
             tauri::async_runtime::spawn(async move {
                 while let Some((total_time, app_handle)) = rx.recv().await {
-                    let mut remaining_time = total_time * 5;
-
+                    println!("Received total time: {}", total_time);
+                    remaining_time.fetch_add(total_time * 5, Ordering::SeqCst);
                     let _ = app_handle.emit("addtime_handler", total_time);
-                    let _ = app_handle.emit("timer_update", remaining_time);
-
-                    while remaining_time > 0 {
-                        sleep(Duration::from_secs(1)).await;
-                        remaining_time -= 1;
-                        let _ = app_handle.emit("timer_update", remaining_time);
-                    }
-
-                    let _ = app_handle.emit("timer_done", "Timer completed!");
                 }
             });
 

@@ -44,3 +44,15 @@ fn load_app_config(config_path: PathBuf) -> Result<AppConfig> {
 
     Ok(app_config_root)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_load_app_config_when_file_does_not_exist() {
+        let config_path = Path::new("appconfig.json");
+        let app_config = load_app_config(config_path.to_path_buf()).unwrap();
+        assert_eq!(app_config.devices.len(), 1);
+    }
+}
