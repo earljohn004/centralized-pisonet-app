@@ -1,10 +1,16 @@
 use axum::{ Json, Router };
 use tauri::{ AppHandle, Emitter };
 use tokio::sync::mpsc;
+use anyhow::{ Context, Result };
 
 use super::models::{ RegisterRequest, RegisterResponse, AddTimeRequest, AddTimeResponse };
 
-pub async fn start_server(app_handle: AppHandle, tx: mpsc::Sender<(u64, AppHandle)>) {
+pub async fn start_server(
+    app_handle: AppHandle,
+    tx: mpsc::Sender<(u64, AppHandle)>,
+    ip_address: String,
+    port: u16
+) -> Result<()> {
     let app_handle_register = app_handle.clone();
     let app_handle_add_time = app_handle.clone();
 
@@ -22,8 +28,14 @@ pub async fn start_server(app_handle: AppHandle, tx: mpsc::Sender<(u64, AppHandl
             })
         );
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let address = format!("{}:{}", ip_address, port);
+    let listener = tokio::net::TcpListener
+        ::bind(address).await
+        .with_context(|| "Failed to bind to address and port")?;
+
+    axum::serve(listener, app).await.with_context(|| "Failed to start server")?;
+
+    Ok(())
 }
 
 async fn register_handler(
