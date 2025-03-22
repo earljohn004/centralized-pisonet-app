@@ -111,6 +111,9 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 loop {
                     let current_remaining_time = remaining_time_countdown.load(Ordering::SeqCst);
+                    if current_remaining_time == 0 {
+                        window_manager::utility::show_main_window(&countdown_app_handle);
+                    }
 
                     if current_remaining_time > 0 {
                         println!("Remaining time: {}", current_remaining_time);
@@ -132,6 +135,12 @@ pub fn run() {
                     println!("Received total time: {}", total_time);
                     remaining_time.fetch_add(total_time * 5, Ordering::SeqCst);
                     let _ = app_handle.emit("addtime_handler", total_time);
+
+                    // Transition window to small when coin is inserted
+                    window_manager::utility::show_small_window(&app_handle);
+                    if let Some(small_window) = app_handle.get_webview_window("small") {
+                        small_window.show().unwrap();
+                    }
                 }
             });
 
