@@ -1,2 +1,3 @@
 pub mod appconfig;
-mod models;
+pub mod uuidmodel;
+mod appconfigmodels;

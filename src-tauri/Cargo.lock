@@ -505,6 +505,7 @@ dependencies = [
 name = "centralized-pisonet-app"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "axum",
  "machineid-rs",
  "serde",
