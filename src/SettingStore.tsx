@@ -41,7 +41,7 @@ export const useEventListeners = () => {
 
   useEffect(() => {
     const unlistenRegister = listen("register_request", (event) => {
-      console.log("Received a received request", event.payload);
+      console.log("Received a register request", event.payload);
       setServerStatus("Received a valid request");
     });
 
