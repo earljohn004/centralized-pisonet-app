@@ -23,6 +23,7 @@ function App() {
         console.log("Received add time request", event.payload);
         let credits = event.payload;
         setCoin(credits);
+        setTimerDone(false);
       },
     );
 
@@ -79,12 +80,14 @@ function App() {
     <main className="container">
       <h1>Welcome MPG Cafe</h1>
       <h2>{serverStatus}</h2>
-      <h2>Inserted PHP {coin}</h2>
 
       {timerDone ? (
-        <h3>Timer is done!</h3>
+        <h3>Insert Coin</h3>
       ) : (
-        <h3>Remaining Time: {remainingTime} seconds</h3>
+        <>
+          <h2>Inserted PHP {coin}</h2>
+          <h3>Remaining Time: {remainingTime} seconds</h3>
+        </>
       )}
 
       <form
