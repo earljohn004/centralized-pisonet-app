@@ -26,3 +26,5 @@ axum = "0.7"
 tokio = { version = "1", features = ["full"] }
 machineid-rs = "1.2.4"
 anyhow = { version = "1.0.97", default-features = false }
+supabase_rs = "0.4.2"
+dotenv = "0.15.0"
