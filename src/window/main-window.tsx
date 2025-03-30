@@ -31,7 +31,7 @@ export const MainWindow = () => {
         </>
       )}
 
-      {/* <form
+      <form
         className="row"
         onSubmit={(e) => {
           e.preventDefault();
@@ -45,7 +45,7 @@ export const MainWindow = () => {
         />
         <button type="submit">Connect in rust</button>
       </form>
-      <p>{greetMsg}</p> */}
+      <p>{greetMsg}</p>
     </>
   );
 };
