@@ -1,6 +1,7 @@
 use anyhow::{ Context, Ok, Result };
 use dotenv::{ dotenv, var };
-use supabase_rs::SupabaseClient;
+use serde_json::json;
+use supabase_rs::{update, SupabaseClient};
 
 use serde::{ Deserialize, Serialize };
 
@@ -68,31 +69,60 @@ async fn fetch_serial_number_table(
     Ok(table)
 }
 
-fn authorization(serial_number_table: SerialNumbersTable, device_id: &str) -> Result<()> {
+async fn update_status(
+    supabase_client: SupabaseClient,
+    serial_number: &str,
+    device_id: &str,
+    active: bool
+) -> Result<()> {
+    let update_result = supabase_client.update_with_column_name(
+        "serial_numbers",
+        "serial_number",
+        serial_number,
+        json!({
+           "active": active,
+           "device_id": device_id
+         })
+    ).await;
+
+    if update_result.is_err() {
+        println!("Error updating status: {:?}", update_result);
+        return Err(anyhow::anyhow!("Failed to update status"));
+    }
+
+    Ok(())
+}
+
+fn authorization(serial_number_table: SerialNumbersTable, device_id: &str) -> bool {
     println!("EARL_DEBUG compare active and device_id");
     let current_device_id = match serial_number_table.device_id {
         Some(id) => id,
         None => { "".to_string() }
     };
 
+    if serial_number_table.active && current_device_id != device_id {
+        println!("Serial number is already active and device ID does not match");
+        return false;
+    }
+
     if serial_number_table.active && current_device_id == device_id {
         println!("Serial number is already active and device ID matches");
-        return Ok(());
+        return true;
     }
 
     println!("EARL_DEBUG active should be false");
     if !serial_number_table.active {
         println!("Serial number is not active and device ID does not match");
-        return Ok(());
+
+        // TODO: Update the serial number
+        return true;
     }
 
-    Ok(())
+    false
 }
 
 #[cfg(test)]
 mod tests {
-    use supabase_rs::update;
-
     use super::*;
 
     #[tokio::test]
@@ -101,7 +131,7 @@ mod tests {
         let serial_number_table = fetch_serial_number_table(client, "SERIAL-123").await;
         assert!(serial_number_table.is_ok(), "Serial number is found on the database");
         let auth_result = authorization(serial_number_table.unwrap(), "mock_device_id");
-        assert!(auth_result.is_ok(), "Authorization should be successful");
+        assert!(auth_result, "Authorization should be successful");
     }
 
     #[tokio::test]
@@ -110,7 +140,16 @@ mod tests {
         let serial_number_table = fetch_serial_number_table(client, "SERIAL-456").await;
         assert!(serial_number_table.is_ok(), "Serial number should be found on the database");
         let auth_result = authorization(serial_number_table.unwrap(), "windowsmachine");
-        assert!(auth_result.is_ok(), "Authorization should be successful");
+        assert!(auth_result, "Authorization should be successful");
+    }
+
+    #[tokio::test]
+    async fn test_authorize_failure_when_active_is_true_and_deviceid_is_incorrect() {
+        let client = connect_supabase().await.unwrap();
+        let serial_number_table = fetch_serial_number_table(client, "SERIAL-456").await;
+        assert!(serial_number_table.is_ok(), "Serial number should be found on the database");
+        let auth_result = authorization(serial_number_table.unwrap(), "incorrect_device_id");
+        assert!(!auth_result, "Authorization should NOT be successful");
     }
 
     #[tokio::test]
@@ -118,5 +157,15 @@ mod tests {
         let client = connect_supabase().await.unwrap();
         let result = fetch_serial_number_table(client, "INVALIDSERIAL-123").await;
         assert!(result.is_err(), "Serial number should not be found on the database");
+    }
+
+    #[tokio::test]
+    async fn test_success_update_status() {
+        let client = connect_supabase().await.unwrap();
+        let result = update_status(client.clone(), "SERIAL-789", "earl_device_id", true).await;
+        assert!(result.is_ok(), "Status should be updated successfully");
+
+        // Revert for testing purposes
+        let _result = update_status(client, "SERIAL-789", "earl_device_id", false).await;
     }
 }
