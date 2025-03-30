@@ -1,8 +1,18 @@
 use anyhow::{ Context, Result };
-use dotenv::dotenv;
+use dotenv::{ dotenv, var };
 use serde_json::json;
 use supabase_rs::SupabaseClient;
-use std::env::var;
+
+use reqwest;
+use serde::{ Deserialize, Serialize };
+use std::{ error::Error, f32::consts::E, ptr::null };
+
+#[derive(Serialize, Deserialize, Debug)]
+struct SerialNumbersTable {
+    serial_number: String,
+    device_id: Option<String>,
+    active: bool,
+}
 
 async fn connect_supabase() -> Result<SupabaseClient> {
     dotenv().ok();
@@ -13,88 +23,137 @@ async fn connect_supabase() -> Result<SupabaseClient> {
     Ok(supabase_client)
 }
 
-// async fn update_serial_number(supabase_client: &SupabaseClient) -> Result<()> {
-//     let update_result = supabase_client.update_with_column_name(
-//         "serial_numbers",
-//         "active",
-//         "false",
-//         json!({
-//            "active": "true"
-//          })
-//     ).await;
-
-//     match update_result {
-//         Ok(_) => println!("Update successful"),
-//         Err(e) => println!("Error updating record: {:?}", e),
-//     }
-
-//     Ok(())
-// }
-
-/// Updates the active status of a serial number record when the email matches and device_id is empty
-/// # Arguments
-/// * `email` - The email address to match against auth.users
-/// * `serial_number` - The serial number to update
-async fn activate_serial_number(
-    client: SupabaseClient,
-    email: &str,
+async fn update_serial_number(
+    supabase_client: SupabaseClient,
+    device_id: &str,
     serial_number: &str
 ) -> Result<()> {
+    let get_active_status = supabase_client
+        .select("serial_numbers")
+        .columns(["active", "serial_number", "device_id"].to_vec())
+        .eq("serial_number", serial_number)
+        .execute().await;
+
+    if get_active_status.is_err() {
+        return Err(anyhow::anyhow!("Failed to fetch active status"));
+    }
+
+    let mut serial_numbers: Option<SerialNumbersTable> = None;
+    if get_active_status.is_ok() {
+        for response in get_active_status.iter() {
+            println!("Active status: {:?}", response);
+            if response.is_empty() {
+                return Err(anyhow::anyhow!("No active status found for the given serial number"));
+            }
+
+            println!("EARL_DEBUG assign to struct");
+            serial_numbers = Some(
+                serde_json
+                    ::from_value(response[0].clone())
+                    .with_context(|| "Failed to deserialize response into SerialNumbersTable")?
+            );
+        }
+    }
+
+    println!("EARL_DEBUG exit");
+    let serial_numbers = match serial_numbers {
+        Some(sn) => sn,
+        None => {
+            return Err(anyhow::anyhow!("Serial number data could not be retrieved"));
+        }
+    };
+
+    println!("EARL_DEBUG compare active and device_id");
+    let current_device_id = match serial_numbers.device_id {
+        Some(id) => id,
+        None => { "".to_string() }
+    };
+
+    if serial_numbers.active && current_device_id == device_id {
+        println!("Serial number is already active and device ID matches");
+        return Ok(());
+    }
+
+    println!("EARL_DEBUG active should be false");
+    if !serial_numbers.active {
+        println!("Serial number is not active and device ID does not match");
+        return Ok(());
+    }
+
+    Ok(())
+}
+
+async fn find_user_in_db(client: SupabaseClient, email: &str) -> Result<()> {
     let user_query = client
         .select("users")
         .columns(["email"].to_vec())
         .eq("email", email)
         .execute().await;
 
-    match user_query {
-        Ok(value) => {
-            println!("EARL_DEBUG test");
-            println!("{:?}", value);
-            for f in value.iter() {
-                println!("User found: {:?}", f);
-                if f == email {
-                    println!("User found: {:?}", f);
-                }
-            }
-        }
-        Err(e) => {
-            println!("Error fetching user: {:?}", e);
-            return Err(anyhow::anyhow!("Failed to fetch user"));
-        }
+    if user_query.is_err() {
+        println!("Error fetching user: {:?}", user_query);
+        return Err(anyhow::anyhow!("Failed to fetch user"));
     }
 
+    if user_query.is_ok() {
+        for users in user_query.iter() {
+            if users.is_empty() {
+                println!("No user found with the given email");
+                return Err(anyhow::anyhow!("No user found with the given email"));
+            }
+
+            println!("User found: {:?}", users);
+            if users.iter().count() == 0 {
+                println!("No user found with the given email");
+                return Err(anyhow::anyhow!("No user found with the given email"));
+            }
+
+            if users.iter().any(|user| user == email) {
+                println!("User found: {:?}", users);
+            }
+        }
+    }
     Ok(())
-
-    // // Now update the serial_number table where uid matches and device_id is null
-    // let update_result = supabase
-    //     .from("serial_number")
-    //     .update(json!({ "active": true }))
-    //     .eq("uid", uid)
-    //     .eq("serial_number", serial_number)
-    //     .is_("device_id", "null") // Check if device_id is NULL
-    //     .execute().await?;
-
-    // if update_result.status().is_success() {
-    //     let response_data: serde_json::Value = update_result.json().await?;
-    //     if let Some(updated_count) = response_data.as_array().map(|arr| arr.len()) {
-    //         if updated_count > 0 {
-    //             println!("Successfully activated serial number {}", serial_number);
-    //             return Ok(());
-    //         }
-    //     }
-    //     Err(anyhow::anyhow!("No matching serial number found with the given conditions"))
-    // } else {
-    //     Err(anyhow::anyhow!("Failed to update serial number: {}", update_result.status()))
-    // }
 }
 
 #[cfg(test)]
 mod tests {
+    use supabase_rs::update;
+
     use super::*;
 
     #[tokio::test]
-    async fn test_connect() {
+    async fn test_success_when_user_is_found() {
         let client = connect_supabase().await.unwrap();
-        let _ = activate_serial_number(client, "mpguser004@gmail.com", "1234567").await.unwrap();
+        let result = find_user_in_db(client, "mpguser004@gmail.com").await;
+        assert!(result.is_ok(), "User is found on the database");
+    }
+
+    #[tokio::test]
+    async fn test_failure_when_user_is_not_found() {
+        let client = connect_supabase().await.unwrap();
+        let result = find_user_in_db(client, "testemail@gmail.com").await;
+        assert!(result.is_err(), "User should not be found on the database");
+    }
+
+    #[tokio::test]
+    async fn test_success_when_serial_number_is_found_and_active_is_false() {
+        let client = connect_supabase().await.unwrap();
+        let result = update_serial_number(client, "mock_device_id", "SERIAL-123").await;
+        assert!(result.is_ok(), "Serial number is found on the database");
+    }
+
+    #[tokio::test]
+    async fn test_success_when_serialnumber_is_found_active_is_true_deviceid_is_match() {
+        let client = connect_supabase().await.unwrap();
+        let result = update_serial_number(client, "windowsmachine", "SERIAL-456").await;
+        assert!(result.is_ok(), "Serial number should be found on the database");
+    }
+
+    #[tokio::test]
+    async fn test_failure_when_serial_number_is_not_found() {
+        let client = connect_supabase().await.unwrap();
+        let result = update_serial_number(client, "mock_device_id", "INVALIDSERIAL-123").await;
+        assert!(result.is_err(), "Serial number should not be found on the database");
     }
 }
