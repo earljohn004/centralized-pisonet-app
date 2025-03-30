@@ -1,4 +1,4 @@
-use anyhow::{ Context, Result };
+use anyhow::{ Context, Ok, Result };
 use dotenv::{ dotenv, var };
 use supabase_rs::SupabaseClient;
 
@@ -27,9 +27,8 @@ async fn connect_supabase() -> Result<SupabaseClient> {
 
 async fn fetch_serial_number_table(
     supabase_client: SupabaseClient,
-    device_id: &str,
     serial_number: &str
-) -> Result<()> {
+) -> Result<SerialNumbersTable> {
     let get_active_status = supabase_client
         .select("serial_numbers")
         .columns(["*", "users(email)"].to_vec())
@@ -50,7 +49,6 @@ async fn fetch_serial_number_table(
                 return Err(anyhow::anyhow!("No active status found for the given serial number"));
             }
 
-            println!("EARL_DEBUG assign to struct");
             serial_numbers = Some(
                 serde_json
                     ::from_value(response[0].clone())
@@ -59,8 +57,7 @@ async fn fetch_serial_number_table(
         }
     }
 
-    println!("EARL_DEBUG exit");
-    let serial_numbers = match serial_numbers {
+    let table = match serial_numbers {
         Some(sn) => sn,
         None => {
             println!("No serial number data found");
@@ -68,19 +65,23 @@ async fn fetch_serial_number_table(
         }
     };
 
+    Ok(table)
+}
+
+fn authorization(serial_number_table: SerialNumbersTable, device_id: &str) -> Result<()> {
     println!("EARL_DEBUG compare active and device_id");
-    let current_device_id = match serial_numbers.device_id {
+    let current_device_id = match serial_number_table.device_id {
         Some(id) => id,
         None => { "".to_string() }
     };
 
-    if serial_numbers.active && current_device_id == device_id {
+    if serial_number_table.active && current_device_id == device_id {
         println!("Serial number is already active and device ID matches");
         return Ok(());
     }
 
     println!("EARL_DEBUG active should be false");
-    if !serial_numbers.active {
+    if !serial_number_table.active {
         println!("Serial number is not active and device ID does not match");
         return Ok(());
     }
@@ -97,23 +98,25 @@ mod tests {
     #[tokio::test]
     async fn test_success_when_serial_number_is_found_and_active_is_false() {
         let client = connect_supabase().await.unwrap();
-        let result = fetch_serial_number_table(client, "mock_device_id", "SERIAL-123").await;
-        // Print result
-        println!("EARL_DEBUG Result: {:?}", result);
-        assert!(result.is_ok(), "Serial number is found on the database");
+        let serial_number_table = fetch_serial_number_table(client, "SERIAL-123").await;
+        assert!(serial_number_table.is_ok(), "Serial number is found on the database");
+        let auth_result = authorization(serial_number_table.unwrap(), "mock_device_id");
+        assert!(auth_result.is_ok(), "Authorization should be successful");
     }
 
     #[tokio::test]
     async fn test_success_when_serialnumber_is_found_active_is_true_deviceid_is_match() {
         let client = connect_supabase().await.unwrap();
-        let result = fetch_serial_number_table(client, "windowsmachine", "SERIAL-456").await;
-        assert!(result.is_ok(), "Serial number should be found on the database");
+        let serial_number_table = fetch_serial_number_table(client, "SERIAL-456").await;
+        assert!(serial_number_table.is_ok(), "Serial number should be found on the database");
+        let auth_result = authorization(serial_number_table.unwrap(), "windowsmachine");
+        assert!(auth_result.is_ok(), "Authorization should be successful");
     }
 
     #[tokio::test]
     async fn test_failure_when_serial_number_is_not_found() {
         let client = connect_supabase().await.unwrap();
-        let result = fetch_serial_number_table(client, "mock_device_id", "INVALIDSERIAL-123").await;
+        let result = fetch_serial_number_table(client, "INVALIDSERIAL-123").await;
         assert!(result.is_err(), "Serial number should not be found on the database");
     }
 }
