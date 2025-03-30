@@ -14,7 +14,6 @@ use tokio::time::sleep;
 mod http_server;
 mod window_manager;
 mod settings;
-mod licensing;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -144,8 +143,6 @@ pub fn run() {
                     }
                 }
             });
-
-            // let _ = licensing::cloud_service::connect_supabase()?;
 
             Ok(())
         })
