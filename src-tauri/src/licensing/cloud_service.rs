@@ -1,7 +1,7 @@
 use anyhow::{ Context, Ok, Result };
 use dotenv::{ dotenv, var };
 use serde_json::json;
-use supabase_rs::{update, SupabaseClient};
+use supabase_rs::{ update, SupabaseClient };
 
 use serde::{ Deserialize, Serialize };
 
@@ -15,6 +15,23 @@ struct SerialNumbersTable {
 #[derive(Serialize, Deserialize, Debug)]
 struct User {
     email: String,
+}
+
+pub async fn authorize(serial_number: &str, email_address: &str, device_id: &str) -> Result<bool> {
+    let supabase_client = connect_supabase().await?;
+
+    let serial_number_table = fetch_serial_number_table(
+        supabase_client.clone(),
+        serial_number
+    ).await?;
+    let is_authorized = authorization(serial_number_table, device_id, email_address);
+
+    // TODO: update the table
+    // if is_authorized {
+    //     update_status(supabase_client, serial_number, device_id, true).await?;
+    // }
+
+    Ok(is_authorized)
 }
 
 async fn connect_supabase() -> Result<SupabaseClient> {
@@ -93,12 +110,21 @@ async fn update_status(
     Ok(())
 }
 
-fn authorization(serial_number_table: SerialNumbersTable, device_id: &str) -> bool {
+fn authorization(
+    serial_number_table: SerialNumbersTable,
+    device_id: &str,
+    email_address: &str
+) -> bool {
     println!("EARL_DEBUG compare active and device_id");
     let current_device_id = match serial_number_table.device_id {
         Some(id) => id,
         None => { "".to_string() }
     };
+
+    if email_address != serial_number_table.users.email {
+        println!("Transaction failed. Email address is not the owner of the serial number");
+        return false;
+    }
 
     if serial_number_table.active && current_device_id != device_id {
         println!("Serial number is already active and device ID does not match");
@@ -125,12 +151,18 @@ fn authorization(serial_number_table: SerialNumbersTable, device_id: &str) -> bo
 mod tests {
     use super::*;
 
+    const TEST_EMAIL_ADDRESS: &str = "mpguser004@gmail.com";
+
     #[tokio::test]
     async fn test_success_when_serial_number_is_found_and_active_is_false() {
         let client = connect_supabase().await.unwrap();
         let serial_number_table = fetch_serial_number_table(client, "SERIAL-123").await;
         assert!(serial_number_table.is_ok(), "Serial number is found on the database");
-        let auth_result = authorization(serial_number_table.unwrap(), "mock_device_id");
+        let auth_result = authorization(
+            serial_number_table.unwrap(),
+            "mock_device_id",
+            TEST_EMAIL_ADDRESS
+        );
         assert!(auth_result, "Authorization should be successful");
     }
 
@@ -139,7 +171,11 @@ mod tests {
         let client = connect_supabase().await.unwrap();
         let serial_number_table = fetch_serial_number_table(client, "SERIAL-456").await;
         assert!(serial_number_table.is_ok(), "Serial number should be found on the database");
-        let auth_result = authorization(serial_number_table.unwrap(), "windowsmachine");
+        let auth_result = authorization(
+            serial_number_table.unwrap(),
+            "windowsmachine",
+            TEST_EMAIL_ADDRESS
+        );
         assert!(auth_result, "Authorization should be successful");
     }
 
@@ -148,7 +184,11 @@ mod tests {
         let client = connect_supabase().await.unwrap();
         let serial_number_table = fetch_serial_number_table(client, "SERIAL-456").await;
         assert!(serial_number_table.is_ok(), "Serial number should be found on the database");
-        let auth_result = authorization(serial_number_table.unwrap(), "incorrect_device_id");
+        let auth_result = authorization(
+            serial_number_table.unwrap(),
+            "incorrect_device_id",
+            TEST_EMAIL_ADDRESS
+        );
         assert!(!auth_result, "Authorization should NOT be successful");
     }
 
@@ -157,6 +197,19 @@ mod tests {
         let client = connect_supabase().await.unwrap();
         let result = fetch_serial_number_table(client, "INVALIDSERIAL-123").await;
         assert!(result.is_err(), "Serial number should not be found on the database");
+    }
+
+    #[tokio::test]
+    async fn test_failure_when_email_address_is_not_owner_of_serial() {
+        let client = connect_supabase().await.unwrap();
+        let serial_number_table = fetch_serial_number_table(client, "SERIAL-123").await;
+        assert!(serial_number_table.is_ok(), "Serial number should be found on the database");
+        let auth_result = authorization(
+            serial_number_table.unwrap(),
+            "mockdevice_id",
+            "invalid@emailaddress.com"
+        );
+        assert!(!auth_result, "Authorization should NOT be successful");
     }
 
     #[tokio::test]
