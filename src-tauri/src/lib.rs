@@ -14,10 +14,29 @@ use tokio::time::sleep;
 mod http_server;
 mod window_manager;
 mod settings;
+mod licensing;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+#[tauri::command]
+fn authorize(serial_number: &str, email_address: &str) -> bool {
+    println!("Serial number: {}, email address: {}", serial_number, email_address);
+
+    let async_result = tauri::async_runtime::block_on(async {
+        licensing::cloud_service::authorize(serial_number, email_address, "mockdeviceid").await
+    });
+
+    if let Ok(result) = async_result {
+        println!("Authorization result: {:?}", result);
+        return result;
+    } else {
+        println!("Authorization error encountered!");
+    }
+
+    false
 }
 
 fn create_system_tray(app: &AppHandle) -> Result<()> {
@@ -147,7 +166,7 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![greet, authorize])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
