@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useSettingStore } from "../SettingStore";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 export const MainWindow = () => {
   const greetMsg = useSettingStore((state) => state.greetMsg);
@@ -11,8 +11,8 @@ export const MainWindow = () => {
   const setGreetMsg = useSettingStore((state) => state.setGreetMsg);
   const name = useSettingStore((state) => state.name);
 
-  const [serialNumber, setSerialNumber] = useState("");
-  const [emailAddress, setEmailAddress] = useState("");
+  const serialNumberRef = useRef<HTMLInputElement>(null);
+  const emailAddressRef = useRef<HTMLInputElement>(null);
   const [authorized, setAuthorized] = useState(false);
 
   async function greet() {
@@ -20,6 +20,8 @@ export const MainWindow = () => {
   }
 
   async function authorize() {
+    const serialNumber = serialNumberRef.current?.value || "";
+    const emailAddress = emailAddressRef.current?.value || "";
     setAuthorized(await invoke("authorize", { serialNumber, emailAddress }));
   }
 
@@ -49,12 +51,12 @@ export const MainWindow = () => {
       >
         <input
           id="serial-input"
-          onChange={(e) => setSerialNumber(e.currentTarget.value)}
+          ref={serialNumberRef}
           placeholder="Enter Serial Number..."
         />
         <input
           id="email-input"
-          onChange={(e) => setEmailAddress(e.currentTarget.value)}
+          ref={emailAddressRef}
           placeholder="Enter Owner Address..."
         />
         <button type="submit">Connect in rust</button>
