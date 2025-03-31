@@ -1,12 +1,12 @@
 use std::sync::atomic::{ AtomicU64, Ordering };
-use std::sync::{ Arc, Mutex };
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
 use http_server::handler::start_server;
 use settings::uuidmodel::UniqueId;
 use tauri::menu::{ Menu, MenuItem };
-use tauri::{ AppHandle, Emitter, Manager, State, StateManager };
+use tauri::{ AppHandle, Emitter, Manager };
 use tauri::tray::TrayIconBuilder;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
@@ -24,11 +24,7 @@ fn greet(name: &str) -> String {
 }
 
 #[tauri::command]
-fn authorize(
-    serial_number: &str,
-    email_address: &str,
-    state: tauri::State<AppState>,
-) -> bool {
+fn authorize(serial_number: &str, email_address: &str, state: tauri::State<AppState>) -> bool {
     println!("Serial number: {}, email address: {}", serial_number, email_address);
 
     let async_result = tauri::async_runtime::block_on(async {
