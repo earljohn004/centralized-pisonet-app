@@ -16,7 +16,7 @@ mod window_manager;
 mod settings;
 mod licensing;
 
-type AppState = std::sync::Mutex<settings::appconfigmodels::AppConfig>;
+type AppConfigState = std::sync::Mutex<settings::appconfigmodels::AppConfig>;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -24,7 +24,11 @@ fn greet(name: &str) -> String {
 }
 
 #[tauri::command]
-fn authorize(serial_number: &str, email_address: &str, state: tauri::State<AppState>) -> bool {
+fn authorize(
+    serial_number: &str,
+    email_address: &str,
+    state: tauri::State<AppConfigState>
+) -> bool {
     println!("Serial number: {}, email address: {}", serial_number, email_address);
 
     let async_result = tauri::async_runtime::block_on(async {
@@ -117,13 +121,15 @@ pub fn run() {
             //
             let device = UniqueId::default()?;
             let device_name = device.id;
-            // let ip = application_config.get_ip_address(device_name.as_str())?;
-            // let port: u16 = application_config.get_port(device_name.as_str())?.parse()?;
-            let ip = "127.0.0.1".to_string();
-            let port: u16 = 8080;
+            let config = app.handle().state::<AppConfigState>();
 
-            // Manage the application state
-            // app.manage(Mutex::new(application_config));
+            let ip: String;
+            let port: u16;
+            {
+                let application_config = config.lock().unwrap();
+                ip = application_config.get_ip_address(device_name.as_str())?;
+                port = application_config.get_port(device_name.as_str())?.parse()?;
+            }
 
             //
             // Thread to start the server
