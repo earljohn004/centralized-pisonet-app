@@ -4,7 +4,6 @@ use std::time::Duration;
 
 use anyhow::Result;
 use http_server::handler::start_server;
-use serde_json::json;
 use settings::appconfigmodels::License;
 use settings::uuidmodel::UniqueId;
 use tauri::menu::{ Menu, MenuItem };
@@ -24,7 +23,7 @@ type AppConfigState = std::sync::Mutex<settings::appconfigmodels::AppConfig>;
 fn authorize(
     serial_number: &str,
     email_address: &str,
-    state: tauri::State<AppConfigState>
+    _state: tauri::State<AppConfigState>
 ) -> bool {
     println!("Serial number: {}, email address: {}", serial_number, email_address);
 
