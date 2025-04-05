@@ -1,5 +1,5 @@
 import "./App.css";
-import { useEventListeners } from "./SettingStore";
+import { useEventListeners } from "./store/Settings";
 import AppRouter from "./Router";
 
 function App() {
