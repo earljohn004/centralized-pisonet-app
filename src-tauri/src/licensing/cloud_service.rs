@@ -1,7 +1,7 @@
 use anyhow::{ Context, Ok, Result };
 use dotenv::{ dotenv, var };
 use serde_json::json;
-use supabase_rs::{ update, SupabaseClient };
+use supabase_rs::SupabaseClient;
 
 use serde::{ Deserialize, Serialize };
 

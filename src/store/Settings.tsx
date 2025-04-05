@@ -1,13 +1,15 @@
 import { listen, Event } from "@tauri-apps/api/event";
 import { useEffect } from "react";
 import { create } from "zustand";
-import { router } from "./Router";
+import { router } from "../Router";
+
+interface LicenseInformation {
+  authorized: boolean;
+  serialNumber: string;
+  emailAddress: string;
+}
 
 type SettingState = {
-  greetMsg: string;
-  setGreetMsg: (msg: string) => void;
-  name: string;
-  setName: (name: string) => void;
   serverStatus: string;
   setServerStatus: (status: string) => void;
   coin: number;
@@ -16,17 +18,28 @@ type SettingState = {
   setRemainingTime: (time: number) => void;
   timerDone: boolean;
   setTimerDone: (done: boolean) => void;
+  licenseInformation: LicenseInformation;
+  setLicenseInformation: (info: LicenseInformation) => void;
 };
 
 export const useSettingStore = create<SettingState>((set) => ({
-  greetMsg: "",
-  name: "",
   serverStatus: "offline",
   coin: 0,
   remainingTime: 0,
   timerDone: false,
-  setGreetMsg: (msg) => set({ greetMsg: msg }),
-  setName: (name) => set({ name }),
+  licenseInformation: {
+    authorized: false,
+    serialNumber: "",
+    emailAddress: "",
+  },
+  setLicenseInformation: (info: LicenseInformation) =>
+    set({
+      licenseInformation: {
+        authorized: info.authorized,
+        emailAddress: info.emailAddress,
+        serialNumber: info.serialNumber,
+      },
+    }),
   setServerStatus: (status) => set({ serverStatus: status }),
   setCoin: (coin) => set({ coin }),
   setRemainingTime: (time) => set({ remainingTime: time }),
@@ -38,6 +51,22 @@ export const useEventListeners = () => {
   const setCoin = useSettingStore((state) => state.setCoin);
   const setTimerDone = useSettingStore((state) => state.setTimerDone);
   const setRemainingTime = useSettingStore((state) => state.setRemainingTime);
+  const setLicenseInformation = useSettingStore(
+    (state) => state.setLicenseInformation,
+  );
+
+  useEffect(() => {
+    const unlistenLicenseInformation = listen("initialize_license", (event) => {
+      const { authorized, serialNumber, emailAddress } =
+        event.payload as LicenseInformation;
+      console.log("Received license information", event.payload);
+      setLicenseInformation({ authorized, serialNumber, emailAddress });
+    });
+
+    return () => {
+      unlistenLicenseInformation.then((unlistenFn) => unlistenFn());
+    };
+  }, []);
 
   useEffect(() => {
     const unlistenRegister = listen("register_request", (event) => {

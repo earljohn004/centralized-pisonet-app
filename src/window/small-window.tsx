@@ -1,4 +1,4 @@
-import { useSettingStore } from "../SettingStore";
+import { useSettingStore } from "../store/Settings";
 
 export const SmallWindow = () => {
   const coin = useSettingStore((state) => state.coin);

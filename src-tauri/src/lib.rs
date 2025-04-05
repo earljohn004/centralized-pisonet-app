@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use http_server::handler::start_server;
+use settings::appconfigmodels::License;
 use settings::uuidmodel::UniqueId;
 use tauri::menu::{ Menu, MenuItem };
 use tauri::{ AppHandle, Emitter, Manager };
@@ -19,15 +20,10 @@ mod licensing;
 type AppConfigState = std::sync::Mutex<settings::appconfigmodels::AppConfig>;
 
 #[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
-#[tauri::command]
 fn authorize(
     serial_number: &str,
     email_address: &str,
-    state: tauri::State<AppConfigState>
+    _state: tauri::State<AppConfigState>
 ) -> bool {
     println!("Serial number: {}, email address: {}", serial_number, email_address);
 
@@ -125,11 +121,28 @@ pub fn run() {
 
             let ip: String;
             let port: u16;
+            let license: License;
             {
                 let application_config = config.lock().unwrap();
+
+                // Get the ip and port from application config
                 ip = application_config.get_ip_address(device_name.as_str())?;
                 port = application_config.get_port(device_name.as_str())?.parse()?;
+
+                // Get the License information from application config
+                // and emit it to the main window
+                license = application_config.get_license(device_name.as_str())?;
+                println!("License: {:?}", license);
             }
+
+            //
+            // Thread to  send initialization to main window
+            //
+            let emit_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                sleep(Duration::from_secs(2)).await;
+                let _ = emit_handle.emit("initialize_license", license.to_json());
+            });
 
             //
             // Thread to start the server
@@ -185,7 +198,7 @@ pub fn run() {
         })
         .manage(std::sync::Mutex::new(app_config))
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet, authorize])
+        .invoke_handler(tauri::generate_handler![authorize])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

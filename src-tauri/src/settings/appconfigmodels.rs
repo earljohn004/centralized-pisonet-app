@@ -66,6 +66,16 @@ impl Default for License {
     }
 }
 
+impl License {
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "authorized": self.authorized,
+            "serialNumber": self.serial_number,
+            "emailAddress": self.email_address,
+        })
+    }
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         AppConfig {
