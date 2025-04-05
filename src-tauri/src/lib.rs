@@ -16,13 +16,19 @@ mod window_manager;
 mod settings;
 mod licensing;
 
+type AppConfigState = std::sync::Mutex<settings::appconfigmodels::AppConfig>;
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
 #[tauri::command]
-fn authorize(serial_number: &str, email_address: &str) -> bool {
+fn authorize(
+    serial_number: &str,
+    email_address: &str,
+    state: tauri::State<AppConfigState>
+) -> bool {
     println!("Serial number: {}, email address: {}", serial_number, email_address);
 
     let async_result = tauri::async_runtime::block_on(async {
@@ -84,14 +90,17 @@ fn create_system_tray(app: &AppHandle) -> Result<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let app_config = match settings::appconfig::initialize() {
+        Ok(config) => config,
+        Err(e) => {
+            eprintln!("Failed to initialize appconfig: {}", e);
+            return;
+        }
+    };
+
     tauri::Builder
         ::default()
         .setup(|app| {
-            //
-            // Initialize the appconfig.json file
-            //
-            let application_config = settings::appconfig::initialize()?;
-
             //
             // Clone the app handle
             //
@@ -107,17 +116,26 @@ pub fn run() {
                 mpsc::Receiver<(u64, AppHandle)>,
             ) = mpsc::channel(32);
 
+            //
+            // Get the application config
+            //
             let device = UniqueId::default()?;
             let device_name = device.id;
+            let config = app.handle().state::<AppConfigState>();
 
-            let ip = application_config.get_ip_address(device_name.as_str())?;
-            let port: u16 = application_config.get_port(device_name.as_str())?.parse()?;
+            let ip: String;
+            let port: u16;
+            {
+                let application_config = config.lock().unwrap();
+                ip = application_config.get_ip_address(device_name.as_str())?;
+                port = application_config.get_port(device_name.as_str())?.parse()?;
+            }
 
             //
             // Thread to start the server
             //
             tauri::async_runtime::spawn(async move {
-                let _ = start_server(app_handle, tx, ip, port).await;
+                let _ = start_server(app_handle.clone(), tx, ip, port).await;
             });
 
             let remaining_time = Arc::new(AtomicU64::new(0));
@@ -165,6 +183,7 @@ pub fn run() {
 
             Ok(())
         })
+        .manage(std::sync::Mutex::new(app_config))
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![greet, authorize])
         .run(tauri::generate_context!())

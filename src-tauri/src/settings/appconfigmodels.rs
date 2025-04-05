@@ -49,13 +49,21 @@ impl Default for Server {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct License {
     pub authorized: bool,
-    #[serde(rename = "seat-serial")]
-    pub seat_serial: String,
-    pub identification: String,
-    pub hwid: String,
+    pub serial_number: String,
+    pub email_address: String,
+}
+
+impl Default for License {
+    fn default() -> Self {
+        License {
+            authorized: false,
+            serial_number: "".to_string(),
+            email_address: "".to_string(),
+        }
+    }
 }
 
 impl Default for AppConfig {
@@ -86,6 +94,26 @@ impl AppConfig {
             .get(device_name)
             .map(|device| device.config.server.port.clone())
             .with_context(|| "Port is configured")
+    }
+
+    pub fn get_license(&self, device_name: &str) -> Result<License, anyhow::Error> {
+        self.devices
+            .get(device_name)
+            .map(|device| device.config.license.clone())
+            .with_context(|| "License is not configured")
+    }
+
+    pub fn set_license(
+        &mut self,
+        device_name: &str,
+        license: License
+    ) -> Result<(), anyhow::Error> {
+        if let Some(device) = self.devices.get_mut(device_name) {
+            device.config.license = license;
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("Device configuration is not found!"))
+        }
     }
 }
 

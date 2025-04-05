@@ -22,7 +22,7 @@ export const MainWindow = () => {
   async function authorize() {
     const serialNumber = serialNumberRef.current?.value || "";
     const emailAddress = emailAddressRef.current?.value || "";
-    setAuthorized(await invoke("authorize", { serialNumber, emailAddress }));
+    setAuthorized(await invoke<(boolean)>("authorize", { serialNumber, emailAddress }));
   }
 
   return (
