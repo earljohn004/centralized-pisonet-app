@@ -20,6 +20,7 @@ pub struct InnerConfig {
     pub client: HashMap<String, Client>,
     pub server: Server,
     pub license: License,
+    pub ui: UserInterface,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -37,6 +38,38 @@ pub struct Server {
     pub configpath: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct License {
+    pub authorized: bool,
+    pub serial_number: String,
+    pub email_address: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct UserInterface {
+    pub cafe_name: String,
+    pub station_id: String,
+    pub insert_coin_text: String,
+    pub autoshutdown_text: String,
+    pub smwindow_position: String,
+    pub background_img: String,
+    pub countdown_timer: u8,
+}
+
+impl Default for UserInterface {
+    fn default() -> Self {
+        UserInterface {
+            cafe_name: "MPG Cafe".to_string(),
+            station_id: "station-01".to_string(),
+            insert_coin_text: "Insert Coin".to_string(),
+            autoshutdown_text: "Auto Shutdown in".to_string(),
+            smwindow_position: "top-right".to_string(),
+            background_img: "none".to_string(),
+            countdown_timer: 100,
+        }
+    }
+}
+
 impl Default for Server {
     fn default() -> Self {
         Server {
@@ -47,13 +80,6 @@ impl Default for Server {
             configpath: "".to_string(),
         }
     }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct License {
-    pub authorized: bool,
-    pub serial_number: String,
-    pub email_address: String,
 }
 
 impl Default for License {
