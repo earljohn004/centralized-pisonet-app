@@ -16,8 +16,37 @@ mod http_server;
 mod window_manager;
 mod settings;
 mod licensing;
+mod constants;
 
 type AppConfigState = std::sync::Mutex<settings::appconfigmodels::AppConfig>;
+
+#[tauri::command]
+fn validate_password(
+    password: &str,
+    _state: tauri::State<AppConfigState>,
+    app_handle: tauri::AppHandle
+) -> bool {
+    if password == "123" {
+        let _ = app_handle.emit(constants::HANDLER_SETTINGS_ROUTE, true);
+        return true;
+    }
+    false
+}
+
+#[tauri::command]
+fn get_ui_config(
+    _state: tauri::State<AppConfigState>
+) -> Result<serde_json::Value, tauri::ipc::InvokeError> {
+    let config = _state.lock().map_err(|e| tauri::ipc::InvokeError::from(e.to_string()))?;
+    let device = UniqueId::default().map_err(|e| tauri::ipc::InvokeError::from(e.to_string()))?;
+    let device_name = device.id;
+
+    let ui_config = config
+        .get_ui_config(device_name.as_str())
+        .map_err(|e| tauri::ipc::InvokeError::from(e.to_string()))?;
+
+    Ok(serde_json::to_value(ui_config).map_err(|e| tauri::ipc::InvokeError::from(e.to_string()))?)
+}
 
 #[tauri::command]
 fn authorize(
@@ -141,7 +170,7 @@ pub fn run() {
             let emit_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 sleep(Duration::from_secs(2)).await;
-                let _ = emit_handle.emit("initialize_license", license.to_json());
+                let _ = emit_handle.emit(constants::HANDLER_INITIALIZE_LICENSE, license.to_json());
             });
 
             //
@@ -159,21 +188,31 @@ pub fn run() {
             //
             let countdown_app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
+                let mut last_value = remaining_time_countdown.load(Ordering::SeqCst);
                 loop {
-                    let current_remaining_time = remaining_time_countdown.load(Ordering::SeqCst);
-                    if current_remaining_time == 0 {
-                        window_manager::utility::show_main_window(&countdown_app_handle);
+                    let current = remaining_time_countdown.load(Ordering::SeqCst);
+                    if current != last_value {
+                        if current == 0 && last_value > 0 {
+                            let _ = countdown_app_handle.emit(
+                                constants::HANDLER_TIMER_DONE,
+                                "Timer completed!"
+                            );
+                            window_manager::utility::show_main_window(&countdown_app_handle);
+                        } else if current > 0 {
+                            println!("Remaining time: {}", current);
+                            let _ = countdown_app_handle.emit(
+                                constants::HANDLER_TIMER_UPDATE,
+                                current
+                            );
+                        }
+                        last_value = current;
                     }
 
-                    if current_remaining_time > 0 {
-                        println!("Remaining time: {}", current_remaining_time);
-                        let _ = countdown_app_handle.emit("timer_update", current_remaining_time);
+                    if current > 0 {
                         remaining_time_countdown.fetch_sub(1, Ordering::SeqCst);
-                        sleep(Duration::from_secs(1)).await;
-                    } else {
-                        let _ = countdown_app_handle.emit("timer_done", "Timer completed!");
-                        sleep(Duration::from_millis(100)).await;
                     }
+
+                    sleep(Duration::from_secs(1)).await;
                 }
             });
 
@@ -184,7 +223,7 @@ pub fn run() {
                 while let Some((total_time, app_handle)) = rx.recv().await {
                     println!("Received total time: {}", total_time);
                     remaining_time.fetch_add(total_time * 5, Ordering::SeqCst);
-                    let _ = app_handle.emit("addtime_handler", total_time);
+                    let _ = app_handle.emit(constants::HANDLER_ADDTIME, total_time);
 
                     // Transition window to small when coin is inserted
                     window_manager::utility::show_small_window(&app_handle);
@@ -198,7 +237,7 @@ pub fn run() {
         })
         .manage(std::sync::Mutex::new(app_config))
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![authorize])
+        .invoke_handler(tauri::generate_handler![authorize, validate_password, get_ui_config])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

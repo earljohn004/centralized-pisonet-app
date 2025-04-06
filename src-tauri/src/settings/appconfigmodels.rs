@@ -20,6 +20,7 @@ pub struct InnerConfig {
     pub client: HashMap<String, Client>,
     pub server: Server,
     pub license: License,
+    pub ui: UserInterface,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -37,6 +38,38 @@ pub struct Server {
     pub configpath: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct License {
+    pub authorized: bool,
+    pub serial_number: String,
+    pub email_address: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct UserInterface {
+    pub cafe_name: String,
+    pub station_id: String,
+    pub insert_coin_text: String,
+    pub autoshutdown_text: String,
+    pub smwindow_position: String,
+    pub background_img: String,
+    pub countdown_timer: u8,
+}
+
+impl Default for UserInterface {
+    fn default() -> Self {
+        UserInterface {
+            cafe_name: "MPG Cafe".to_string(),
+            station_id: "station-01".to_string(),
+            insert_coin_text: "Insert Coin".to_string(),
+            autoshutdown_text: "Auto Shutdown in".to_string(),
+            smwindow_position: "top-right".to_string(),
+            background_img: "none".to_string(),
+            countdown_timer: 100,
+        }
+    }
+}
+
 impl Default for Server {
     fn default() -> Self {
         Server {
@@ -47,13 +80,6 @@ impl Default for Server {
             configpath: "".to_string(),
         }
     }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct License {
-    pub authorized: bool,
-    pub serial_number: String,
-    pub email_address: String,
 }
 
 impl Default for License {
@@ -125,6 +151,29 @@ impl AppConfig {
             Err(anyhow::anyhow!("Device configuration is not found!"))
         }
     }
+
+    pub fn get_ui_config(
+        &self,
+        device_name: &str
+    ) -> Result<UserInterface, anyhow::Error> {
+        self.devices
+            .get(device_name)
+            .map(|device| device.config.ui.clone())
+            .with_context(|| "UI configuration is not found")
+    }
+
+    pub fn set_ui_config(
+        &mut self,
+        device_name: &str,
+        ui_config: UserInterface
+    ) -> Result<(), anyhow::Error> {
+        if let Some(device) = self.devices.get_mut(device_name) {
+            device.config.ui = ui_config;
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("Device configuration is not found!"))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -178,4 +227,25 @@ mod tests {
         let port = app_config.get_port("device1");
         assert!(port.is_err());
     }
+
+    #[test]
+    fn test_set_and_get_user_config() {
+        let mut app_config = AppConfig::default();
+        app_config.add_device("device1".to_string());
+        let ui_config = UserInterface {
+            cafe_name: "Test Cafe".to_string(),
+            station_id: "station-01".to_string(),
+            insert_coin_text: "Insert Coin".to_string(),
+            autoshutdown_text: "Auto Shutdown in".to_string(),
+            smwindow_position: "top-right".to_string(),
+            background_img: "none".to_string(),
+            countdown_timer: 100,
+        };
+        app_config.set_ui_config("device1", ui_config.clone()).unwrap();
+
+        let retrieved_ui_config = app_config.get_ui_config("device1").unwrap();
+        assert_eq!(retrieved_ui_config.cafe_name, ui_config.cafe_name);
+    }
+
+
 }
