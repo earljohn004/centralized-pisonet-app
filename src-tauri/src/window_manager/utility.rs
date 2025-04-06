@@ -39,3 +39,10 @@ pub fn show_main_window(app: &AppHandle) {
         window.show().unwrap();
     }
 }
+
+pub fn is_main_window_active(app: &AppHandle) -> bool {
+    if let Some(window) = app.get_webview_window("main") {
+        return window.is_visible().unwrap();
+    }
+    false
+}

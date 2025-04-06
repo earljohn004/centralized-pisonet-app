@@ -11,7 +11,7 @@ interface UIConfig {
   countdown_timer: number;
 }
 
-export const Settings = () => {
+export const SettingsWindow = () => {
   useEffect(() => {
     const handleFetchConfig = async () => {
       const response = await invoke<UIConfig>("get_ui_config");

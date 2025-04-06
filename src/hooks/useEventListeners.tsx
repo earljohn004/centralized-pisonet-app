@@ -13,7 +13,7 @@ export const useEventListeners = () => {
   );
 
   useEffect(() => {
-    const unlistenLicenseInformation = listen("initialize_license", (event) => {
+    const unlistenLicenseInformation = listen("handler_initialize_license", (event) => {
       const { authorized, serialNumber, emailAddress } =
         event.payload as LicenseInformation;
       console.log("Received license information", event.payload);
@@ -26,13 +26,28 @@ export const useEventListeners = () => {
   }, []);
 
   useEffect(() => {
+    const unlistenNavigate = listen(
+      "handler_settings_route",
+      (event: Event<boolean>) => {
+        console.log("Received settings route handler", event.payload);
+        if (event.payload) {
+          router.navigate("/settings");
+        }
+      },
+    );
+    return () => {
+      unlistenNavigate.then((unlistenFn) => unlistenFn());
+    };
+  }, []);
+
+  useEffect(() => {
     const unlistenRegister = listen("register_request", (event) => {
       console.log("Received a register request", event.payload);
       setServerStatus("Received a valid request");
     });
 
     const unlistenAddTime = listen(
-      "addtime_handler",
+      "handler_addtime",
       (event: Event<number>) => {
         console.log("Received add time request", event.payload);
         setCoin(event.payload);
@@ -42,13 +57,13 @@ export const useEventListeners = () => {
     );
 
     const unlistenTimerUpdate = listen(
-      "timer_update",
+      "handler_timer_update",
       (event: Event<number>) => {
         setRemainingTime(event.payload);
       },
     );
 
-    const unlistenTimerDone = listen("timer_done", () => {
+    const unlistenTimerDone = listen("handler_timer_done", () => {
       setTimerDone(true);
       router.navigate("/show_main");
     });

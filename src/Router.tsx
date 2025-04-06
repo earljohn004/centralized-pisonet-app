@@ -1,5 +1,5 @@
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
-import { MainWindow, Settings, SmallWindow } from "./window";
+import { MainWindow, SettingsWindow, SmallWindow } from "./window";
 
 export const router = createBrowserRouter([
   {
@@ -16,7 +16,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/settings",
-    element: <Settings />,
+    element: <SettingsWindow />,
   },
 ]);
 
