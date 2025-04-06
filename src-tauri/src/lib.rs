@@ -20,6 +20,29 @@ mod licensing;
 type AppConfigState = std::sync::Mutex<settings::appconfigmodels::AppConfig>;
 
 #[tauri::command]
+fn validate_password(password: &str, _state: tauri::State<AppConfigState>) -> bool {
+    if password == "123" {
+        return true;
+    }
+    false
+}
+
+#[tauri::command]
+fn get_ui_config(
+    _state: tauri::State<AppConfigState>
+) -> Result<serde_json::Value, tauri::ipc::InvokeError> {
+    let config = _state.lock().map_err(|e| tauri::ipc::InvokeError::from(e.to_string()))?;
+    let device = UniqueId::default().map_err(|e| tauri::ipc::InvokeError::from(e.to_string()))?;
+    let device_name = device.id;
+
+    let ui_config = config
+        .get_ui_config(device_name.as_str())
+        .map_err(|e| tauri::ipc::InvokeError::from(e.to_string()))?;
+
+    Ok(serde_json::to_value(ui_config).map_err(|e| tauri::ipc::InvokeError::from(e.to_string()))?)
+}
+
+#[tauri::command]
 fn authorize(
     serial_number: &str,
     email_address: &str,
@@ -198,7 +221,7 @@ pub fn run() {
         })
         .manage(std::sync::Mutex::new(app_config))
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![authorize])
+        .invoke_handler(tauri::generate_handler![authorize, validate_password, get_ui_config])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

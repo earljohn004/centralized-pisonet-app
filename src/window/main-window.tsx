@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useSettingStore } from "../store/Settings";
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { router } from "../Router";
 
 export const MainWindow = () => {
   const serverStatus = useSettingStore((state) => state.serverStatus);
@@ -39,6 +40,23 @@ export const MainWindow = () => {
       });
     }
   }
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const passwordRef = useRef<HTMLInputElement>(null);
+
+  const handlePasswordSubmit = async () => {
+    const password = passwordRef.current?.value || "";
+    console.log("Entered Password:", password);
+
+    const isValid = await invoke<boolean>("validate_password", { password });
+
+    if (isValid) {
+      console.log("Password is valid");
+      setIsModalOpen(false);
+    } else {
+      console.log("Invalid password");
+    }
+  };
 
   return (
     <>
@@ -79,6 +97,35 @@ export const MainWindow = () => {
           />
           <button type="submit">Connect in rust</button>
         </form>
+      )}
+
+      <button
+        onClick={() => {
+          setIsModalOpen(true);
+        }}
+      >
+        Settings
+      </button>
+
+      {isModalOpen && (
+        <div className="modal">
+          <div className="modal-content">
+            <h2>Enter Password</h2>
+            <input
+              type="password"
+              ref={passwordRef}
+              placeholder="Enter your password..."
+            />
+            <button onClick={handlePasswordSubmit}>Submit</button>
+            <button
+              onClick={() => {
+                setIsModalOpen(false); // Close the modal
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </>
   );
